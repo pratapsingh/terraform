@@ -1,0 +1,20 @@
+{
+	"name": "OAUTH2_PROXY_CLIENT_ID",
+	"value": "1867890987656789-fghjkuytgfvbnkuygbnmkjh.apps.googleusercontent.com"
+},
+{
+	"name": "OAUTH2_PROXY_CLIENT_SECRET",
+	"value": "fghjkuyfcvbnmkjhgfbnkljhgbnklo-0iugfghjkgfcvbjkjhgv"
+},
+{
+	"name": "OAUTH2_PROXY_COOKIE_REFRESH",
+	"value": "15m"
+},
+{
+	"name": "OAUTH2_PROXY_COOKIE_SECRET",
+	"value": "fghjkl;oiuytfdcvbnklkuhgfghjkjhgbnm,"
+},
+{
+	"name": "OAUTH2_PROXY_SIGNATURE_KEY",
+	"value": "sha1:0a1#ghjklskjhghnmklkjhgbnkjhjkjh"
+}

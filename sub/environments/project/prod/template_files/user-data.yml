@@ -1,0 +1,146 @@
+#cloud-config
+
+coreos:
+    units:
+    -
+        name: docker.service
+        drop-ins:
+            - name: 10-log-level.conf
+              content: |
+                  [Service]
+                  Environment="DOCKER_OPTS=--log-level=warn"
+    -
+        name: papertrail.service
+        command: start
+        runtime: true
+        content: |
+            [Unit]
+            Description=Papertrail Forwarder Service
+            Documentation=http://help.papertrailapp.com/kb/configuration/configuring-centralized-logging-from-systemd/
+            Requires=systemd-journald.service
+            After=systemd-journald.service network.target
+
+            [Service]
+            ExecStart=/bin/sh -c "journalctl -f | ncat --ssl --ssl-verify ${syslog-host} ${syslog-port}"
+            TimeoutStartSec=0
+            Restart=on-failure
+            RestartSec=5s
+
+            [Install]
+            WantedBy=multi-user.target
+    -
+        name: logspout.service
+        command: start
+        runtime: true
+        content: |
+            [Unit]
+            Description=Logspout Forwarder Service
+            Requires=docker.socket
+            After=docker.socket
+
+            [Service]
+            TimeoutStartSec=0
+            Restart=always
+            RestartSec=10s
+            Environment=LOGSPOUT_TAG=${logspout-docker-tag}
+            Environment=LOGSPOUT_SYSLOG_TAG={{.Container.Config.Hostname}}
+            ExecStartPre=-/usr/bin/docker kill logspout
+            ExecStartPre=-/usr/bin/docker rm logspout
+            ExecStartPre=/usr/bin/docker pull gliderlabs/logspout:$${LOGSPOUT_TAG}
+            ExecStart=/usr/bin/docker run --name logspout --hostname logspout \
+                                    --volume /var/run/docker.sock:/tmp/docker.sock:ro \
+                                    --env SYSLOG_HOSTNAME=%H \
+                                    --env SYSLOG_TAG=$${LOGSPOUT_SYSLOG_TAG} \
+                                    --env INACTIVITY_TIMEOUT=1m \
+                                    gliderlabs/logspout:$${LOGSPOUT_TAG} \
+                                    syslog+tls://${syslog-host}:${syslog-port}
+            ExecStop=/usr/bin/docker stop logspout
+
+            [Install]
+            WantedBy=multi-user.target
+    -
+        name: docker-gc.service
+        runtime: true
+        content: |
+            [Unit]
+            Description=Docker Garbage Collection
+            Requires=docker.socket
+            After=docker.socket
+            Documentation=https://github.com/spotify/docker-gc
+
+            [Service]
+            Type=oneshot
+            ExecStartPre=-/usr/bin/docker kill docker-gc
+            ExecStartPre=-/usr/bin/docker rm docker-gc
+            ExecStartPre=/usr/bin/docker pull spotify/docker-gc
+            ExecStart=/usr/bin/docker run --name docker-gc --hostname docker-gc\
+                                    --volume /var/run/docker.sock:/var/run/docker.sock \
+                                    --volume /etc:/etc \
+                                    --env GRACE_PERIOD_SECONDS=7200 \
+                                    spotify/docker-gc
+    -
+        name: docker-gc.timer
+        command: start
+        content: |
+            [Unit]
+            Description=Run Docker Garbage Collector periodically
+
+            [Timer]
+            OnCalendar=0/1:00:00
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+    -
+        name: manage-users.service
+        runtime: true
+        content: |
+            [Unit]
+            Description=Manage Users
+
+            [Service]
+            ExecStart=/opt/bin/manage-users ${ssh-iam-group}
+    -
+        name: manage-users.timer
+        command: start
+        content: |
+            [Unit]
+            Description=Run Manage Users every 15 minutes
+
+            [Timer]
+            OnBootSec=1min
+            OnUnitInactiveSec=15min
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+write_files:
+    -
+        path: "/opt/bin/console-it"
+        permissions: "0755"
+        owner: "root"
+        encoding: "base64"
+        content: |
+            ${console-it-script}
+    -
+        path: "/opt/bin/manage-users"
+        permissions: "0755"
+        owner: "root"
+        encoding: "base64"
+        content: |
+            ${manage-users-script}
+    -
+        path: "/etc/ssh/sshd_config"
+        permissions: "0777"
+        owner: "root:root"
+        encoding: "base64"
+        content: |
+          ${sshd-config}
+
+    -
+        path: "/etc/docker-gc-exclude"
+        permissions: "0766"
+        owner: "root:root"
+        encoding: "base64"
+        content: |
+          ${docker-gc-exclude}

@@ -1,0 +1,12 @@
+# Use most defaults for sshd configuration.
+Subsystem sftp internal-sftp
+UseDNS no
+UsePAM yes
+PrintLastLog no # handled by PAM
+PrintMotd no # handled by PAM
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PermitRootLogin no
+ClientAliveInterval 600
+ClientAliveCountMax 0
+AllowGroups iamuser

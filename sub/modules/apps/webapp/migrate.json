@@ -1,0 +1,19 @@
+[
+  {
+    "name"         : "migrate",
+    "hostname"     : "migrate",
+    "image"        : "${docker-image}",
+    "cpu"          : 256,
+    "memory"       : 768,
+    "command"      : [
+      "python",
+      "manage.py",
+      "migrate",
+      "--noinput"
+    ],
+    "environment" : [
+      ${env-vars}
+    ],
+    "essential"   : true
+  }
+]

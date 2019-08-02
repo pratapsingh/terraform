@@ -1,0 +1,40 @@
+[
+  {
+    "name"         : "webapp",
+    "hostname"     : "webapp",
+    "image"        : "${webapp-docker-image}",
+    "cpu"          : 512,
+    "memory"       : ${webapp-memory},
+    "command"      : [
+      "/bin/bash",
+      "-c",
+      "bin/start-webapp.sh"
+    ],
+    "environment" : [
+      ${env-vars},
+      {
+        "name": "NEW_RELIC_APP_NAME",
+        "value": "${env-new-relic-app-name}"
+      }
+    ],
+    "essential"   : true
+  },
+  {
+    "name"     : "webapp-nginx",
+    "hostname" : "webapp-nginx",
+    "image"    : "${nginx-docker-image}",
+    "cpu"      : 128,
+    "memory"   : 192,
+    "links"    : [
+      "webapp"
+    ],
+    "portMappings" : [
+      {
+        "protocol"      : "tcp",
+        "containerPort" : 80,
+        "hostPort"      : 0
+      }
+    ],
+    "essential" : true
+  }
+]

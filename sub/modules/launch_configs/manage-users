@@ -1,0 +1,38 @@
+#!/bin/bash
+#
+# - initial version in bash
+#
+# - handle removal of linux user accounts where
+#   the corresponding IAM user doesn't exist (anymore)
+#
+# - Stop doing stuff in bash. Use a golang binary instead to achieve the same
+
+#####
+# access requires:
+# - user account: create a vanilla user with group membership
+#   to sudo and docker groups
+# - user's SSH public key: fetch the SSH key uploaded at IAM
+#   for AWS CodeCommit and import it to user's authorized_keys
+#   file via CoreOS's `update-ssh-keys` script. We don't want
+#   deactivated or deleted keys to be present so we delete
+#   all keys in the authorized_keys.d dir and when the
+#   `update-ssh-keys` script runs, it concats only active keys
+#   placed in authorized_keys.d after deletion into the
+#   authorized_keys file
+#
+#####
+
+# argument is the IAM group name: {Production,Staging,Testing,Development}Bastion
+if [ -z "$1" ]; then
+    echo "First argument must contain IAM group name"
+    exit 1
+fi
+
+echo "Fetching executable binary..."
+curl https://s3.amazonaws.com/windli-devops/ssh/run-manage-users > run-manage-users
+
+echo "Setting permissions..."
+chmod +x run-manage-users
+
+echo "Running with arguments: [$1, $2, $3]"
+./run-manage-users --iam-group-name $1

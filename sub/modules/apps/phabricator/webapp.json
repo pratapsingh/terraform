@@ -1,0 +1,75 @@
+[
+  {
+    "name"     : "phabricator",
+    "hostname" : "phabricator",
+    "image"    : "windli/phabricator:2019.05",
+    "environment": [
+      {
+        "name": "PHABRICATOR_HOST",
+        "value": "phab.windli.com"
+      },
+      {
+        "name": "MYSQL_HOST",
+        "value": "phabricator.ghsjfhsfjnjn.us-east-1.rds.amazonaws.com"
+      },
+      {
+        "name": "MYSQL_USER",
+        "value": "root"
+      },
+      {
+        "name": "MYSQL_PASS",
+        "value": "password"
+      },
+      {
+        "name": "SSL_TYPE",
+        "value": "external"
+      },
+      {
+        "name": "ENABLE_APCU",
+        "value": "true"
+      },
+      {
+        "name": "PHABRICATOR_VCS_USER",
+        "value": "git"
+      },
+      {
+        "name": "AWS_SES_ACCESS_KEY",
+        "value": "hjkhgfvbnkjhgfvbnkjhgbnjhg"
+      },
+      {
+        "name": "AWS_SES_SECRET_KEY",
+        "value": "fghjkl;iuyghjkliuygnkluhghjklkjhghjklkjhgbnkjh"
+      },
+      {
+        "name": "AWS_SES_REGION",
+        "value": "us-east-1"
+      }
+    ],
+    "essential" : true
+  },
+  {
+    "name"     : "phabricator-auth-proxy",
+    "hostname" : "phabricator-auth-proxy",
+    "links"    : ["phabricator"],
+    "command"      : [
+      "-provider=google",
+      "-email-domain=windli.com",
+       "-proxy-prefix=/__oauth2__",
+      "-request-logging=false",
+      "-http-address=0.0.0.0:4180",
+      "-upstream=http://phabricator:80/"
+    ],
+    "portMappings" : [
+      {
+        "protocol"      : "tcp",
+        "containerPort" : 4180,
+        "hostPort"      : 0
+      }
+    ],
+    "image"       : "${oauth2_proxy_docker_image}",
+    "environment" : [
+      ${oauth2_proxy_env_vars}
+    ],
+    "essential" : true
+  }
+]

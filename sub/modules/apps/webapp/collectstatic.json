@@ -1,0 +1,21 @@
+[
+  {
+    "name"         : "collectstatic",
+    "hostname"     : "collectstatic",
+    "image"        : "${docker-image}",
+    "cpu"          : 512,
+    "memory"       : 1024,
+    "command"      : [
+      "python",
+      "manage.py",
+      "collectstatic",
+      "--faster",
+      "--noinput",
+      "--verbosity=3"
+    ],
+    "environment" : [
+      ${env-vars}
+    ],
+    "essential"   : true
+  }
+]

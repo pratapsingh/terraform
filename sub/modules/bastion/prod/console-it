@@ -1,0 +1,108 @@
+#!/bin/bash
+
+set -e
+set -u
+
+# Docker images
+AWSCLI_IMG="mesosphere/aws-cli"
+POSTGRES_IMG="postgres:9.6"
+
+# awscli param values
+REGION="us-east-1"
+IM_TASKDEF="im-production-celerybeat"
+RECON_TASKDEF="im-production-recon"
+CP_TASKDEF="im-production-channel-partner"
+
+# temp files
+TASKDEF_JSON=$(mktemp)
+ENV_FILE=$(mktemp)
+
+
+# help text
+function help_text() {
+    echo "Usage: $0 READOPTION CLI [PROJECT]"
+    echo "    READOPTION: 'rw' or 'ro'"
+    echo "    CLI: 'bash' or 'djshell' or 'psql'"
+    echo "    PROJECT: 'recon' / 'cp' (optional)"
+    exit 1
+}
+
+
+## check if necessary args are present:
+
+[[ $# -lt 2 ]] && help_text
+READOPTION=$1
+CLI=$2
+if [[ $# -eq 3 ]]; then
+    PROJECT=$3
+else
+    PROJECT='default'
+fi
+
+[[ "$READOPTION" != "ro" && "$READOPTION" != "rw" ]] && help_text
+[[ "$CLI" != "bash" && "$CLI" != "djshell" && "$CLI" != "psql" ]] && help_text
+
+if [[ "$PROJECT" != "recon" && "$PROJECT" != "default" && "$PROJECT" != "cp" ]]; then
+    help_text
+fi
+
+
+# commands
+randstr=$(head -c 16 /dev/urandom | md5sum | head -c 8)
+name=${USER}-${randstr}
+label="owner=${USER}"
+
+DOCKER_RUN="docker run --memory 2g --cpus=1 --name $name --label $label"
+
+if [[ "$PROJECT" == "recon" ]]; then
+    ## fetch current task def
+    ${DOCKER_RUN} --rm ${AWSCLI_IMG} ecs describe-task-definition --task-definition $RECON_TASKDEF --region $REGION > ${TASKDEF_JSON}
+elif [[ "$PROJECT" == "cp" ]]; then
+    ## fetch current task def
+    ${DOCKER_RUN} --rm ${AWSCLI_IMG} ecs describe-task-definition --task-definition $CP_TASKDEF --region $REGION > ${TASKDEF_JSON}
+else
+    ${DOCKER_RUN} --rm ${AWSCLI_IMG} ecs describe-task-definition --task-definition $IM_TASKDEF --region $REGION > ${TASKDEF_JSON}
+fi
+
+## extract env variables
+cat ${TASKDEF_JSON}  | jq '.taskDefinition.containerDefinitions[0].environment | .[] | .name + "=" + .value ' -r > ${ENV_FILE}
+
+## auth to ECR
+eval $(${DOCKER_RUN} --rm ${AWSCLI_IMG} ecr get-login --no-include-email --region $REGION)
+
+## extract ECR docker image
+## grep assumes first image match
+DJANGO_IMG=$(grep -m1 image ${TASKDEF_JSON} | awk '{ print $2}' | cut -f 2 -d \" )
+
+
+## if $READOPTION = "ro"; override DATABASE_URL with read-only endpoint
+if [[ "$READOPTION" == "ro" ]]; then
+    if grep -q READ_DATABASE_URL ${ENV_FILE}; then
+        READ_DATABASE_URL=$(grep READ_DATABASE_URL ${ENV_FILE} | cut -f 2 -d = )
+        DATABASE_URL_KV="DATABASE_URL=${READ_DATABASE_URL}"
+        sed -i "s#^DATABASE_URL=.*#$DATABASE_URL_KV#" ${ENV_FILE}
+    fi
+fi
+
+echo "starting $READOPTION $CLI connection..."
+
+TMPDIR="/tmp"
+## if $CLI = "bash"; run bash shell
+if [[ "$CLI" == "bash" ]]; then
+    echo "${TMPDIR} will be mounted inside docker instance at /opt/tmp"
+    ${DOCKER_RUN} --env-file ${ENV_FILE} --volume ${TMPDIR}:/opt/tmp --rm -it ${DJANGO_IMG} /bin/bash
+fi
+
+if [[ "$CLI" == "djshell" ]]; then
+    echo "${TMPDIR} will be mounted inside docker instance at /opt/tmp"
+    ${DOCKER_RUN} --env-file ${ENV_FILE} --volume ${TMPDIR}:/opt/tmp --rm -it ${DJANGO_IMG} python manage.py shell
+fi
+
+## if $CLI = "psql"; run psql
+if [[ "$CLI" == "psql" ]]; then
+    DATABASE_URL=$(grep ^DATABASE_URL ${ENV_FILE} | cut -f 2 -d = )
+    ${DOCKER_RUN} --rm -it ${POSTGRES_IMG} psql $DATABASE_URL
+fi
+
+## cleanup
+rm -f ${TASKDEF_JSON} ${ENV_FILE}

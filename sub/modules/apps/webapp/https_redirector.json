@@ -1,0 +1,17 @@
+[
+  {
+    "name"     : "webapp-default",
+    "hostname" : "webapp-default",
+    "image"    : "686140181923.dkr.ecr.us-east-1.amazonaws.com/https-redirector:2018.02",
+    "cpu"      : 32,
+    "memory"   : 32,
+    "portMappings" : [
+      {
+        "protocol"      : "tcp",
+        "containerPort" : 80,
+        "hostPort"      : 0
+      }
+    ],
+    "essential" : true
+  }
+]
